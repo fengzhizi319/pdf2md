@@ -8,7 +8,7 @@
 
 ## 功能
 
-- PDF 提取为 Markdown（优先 `pymupdf4llm`，失败时回退到 `PyMuPDF`）
+- PDF 提取为 Markdown：默认使用 `Marker`，更适合学术论文、数学公式和 LaTeX 场景
 - Markdown 感知式切块，保留章节上下文
 - 本地 Embedding：默认 `sentence-transformers`
 - 离线测试 Embedding：`hash` embedder
@@ -22,7 +22,7 @@
 - macOS Apple Silicon（M 系列）
 - Python `3.12`
 
-> 当前机器默认 `python3` 是 3.13，但本地 embedding 依赖通常在 3.12 更稳，建议显式使用 `python3.12` 创建虚拟环境。
+> 当前机器默认 `python3` 是 3.13，但本地 embedding / OCR / Marker 相关依赖通常在 3.12 更稳，建议显式使用 `python3.12` 创建虚拟环境。
 
 ## 安装
 
@@ -33,6 +33,16 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 ```
+
+## 默认 PDF 提取器
+
+整个项目现在默认使用 `Marker` 进行 PDF -> Markdown 提取，包括：
+
+- `pdf2md_rag.pdf_to_markdown.extract_markdown`
+- `pdf2md_rag.pipeline.ingest_pdf`
+- `src/mac_rag_pipeline.py`
+
+这意味着对包含大量数学公式、学术版式、LaTeX 表达式的论文，提取质量通常会明显好于普通纯文本抽取。
 
 ## 导入示例 PDF
 
@@ -126,7 +136,7 @@ pdf2md-rag-qa \
 
 ## 离线快速测试
 
-不想先下载模型时，可以先用 `hash` embedder 验证全链路：
+如果你只是不想先下载 embedding 模型，可以先用 `hash` embedder 验证向量化与入库链路：
 
 ```bash
 cd /Users/charles/PycharmProjects/pdf2md
@@ -137,14 +147,18 @@ pdf2md-rag ingest \
   --embedder hash
 ```
 
+> 注意：这里的“离线快速测试”只是不下载 embedding 模型；PDF 提取阶段仍会使用 `Marker`。
+
+## Marker / Apple Silicon 说明
+
+- 默认 PDF 提取器会优先尝试 `mps`，不可用时回退到 CPU。
+- `Marker` 对学术论文、公式和 LaTeX 保留更友好，但首次运行可能需要初始化模型，耗时会比纯文本提取更长。
+- 默认 embedding 代码也会优先尝试 `mps`，不可用时回退到 CPU。
+- 首次运行 `sentence-transformers` 会下载 embedding 模型，需要联网。
+- 若使用本地 LLM，Ollama 是最省事的方式；若使用远程或自托管 OpenAI 兼容接口，直接指向对应 `base_url` 即可。
+
 ## 目录结构
 
 - `src/pdf2md_rag/`：主代码
 - `tests/`：单元测试与 smoke test
 
-## Apple Silicon 说明
-
-- 默认 embedding 代码会优先尝试 `mps`，不可用时回退到 CPU。
-- 首次运行 `sentence-transformers` 会下载模型，需要联网。
-- 若你更关注速度，`BAAI/bge-small-en-v1.5` 是一个比较稳妥的起点。
-- 若使用本地 LLM，Ollama 是最省事的方式；若使用远程或自托管 OpenAI 兼容接口，直接指向对应 `base_url` 即可。
