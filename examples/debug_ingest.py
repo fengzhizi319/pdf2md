@@ -1,3 +1,13 @@
+"""调试 `ingest_pdf` 的完整示例脚本。
+
+适合学习：
+- `PipelineConfig` 是如何组装的
+- 主流程最终会产出哪些文件
+- `IngestResult` 里有哪些关键信息
+
+这是最适合在 IDE 里打断点、沿着主流程往下跳转的入口。
+"""
+
 from pathlib import Path
 
 from pdf2md_rag.config import DEFAULT_CHROMA_DIR, DEFAULT_MANIFEST_DIR, DEFAULT_MARKDOWN_DIR, PipelineConfig
@@ -9,6 +19,7 @@ PDF_PATH = PROJECT_ROOT / "pdf/Understanding Lasso – A Novel Lookup Argument P
 
 
 def main() -> None:
+    # 用 hash embedder 作为默认调试模式，避免为了学习代码先下载 embedding 模型。
     config = PipelineConfig(
         markdown_dir=DEFAULT_MARKDOWN_DIR,
         chroma_dir=DEFAULT_CHROMA_DIR,

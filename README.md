@@ -261,3 +261,43 @@ pdf2md-rag ingest \
 - 先理解全局
 - 再理解调用关系
 - 最后深入每个模块细节
+
+## examples 调试脚本地图
+
+`examples/` 目录现在按“阶段”提供了一组 debug 脚本，适合学习和断点调试：
+
+- [`examples/debug_extract_markdown.py`](examples/debug_extract_markdown.py)
+  - 对应：`pdf_to_markdown.extract_markdown`
+  - 作用：查看 PDF 提取后的页数、字符数、Markdown 预览
+- [`examples/debug_chunking.py`](examples/debug_chunking.py)
+  - 对应：`chunking.chunk_markdown`
+  - 作用：查看 chunk 数量、`chunk_id`、heading、page、文本预览
+- [`examples/debug_embeddings.py`](examples/debug_embeddings.py)
+  - 对应：`embeddings.build_embedder`
+  - 作用：查看 embedding 维度和向量内容示例
+  - 特点：完全离线运行（默认 `hash`）
+- [`examples/debug_vectorstore.py`](examples/debug_vectorstore.py)
+  - 对应：`vectorstore.upsert_chunks` / `vectorstore.query_collection`
+  - 作用：查看向量入库与 Top-K 查询结果
+  - 特点：完全离线运行（默认 `hash` + 临时 Chroma）
+- [`examples/debug_search.py`](examples/debug_search.py)
+  - 对应：`search.search_chunks`
+  - 作用：查看 `SearchHit`、`sources` 和 `context_text`
+  - 特点：完全离线运行（默认 `hash` + 临时 Chroma）
+- [`examples/debug_qa.py`](examples/debug_qa.py)
+  - 对应：`simple_qa.ask_question`
+  - 作用：查看 QA 层如何把检索结果拼成 prompt 并得到答案
+  - 特点：完全离线运行（用假的 OpenAI-compatible 响应）
+- [`examples/debug_ingest.py`](examples/debug_ingest.py)
+  - 对应：`pipeline.ingest_pdf`
+  - 作用：查看完整 ingest 执行结果
+
+推荐从这个顺序开始：
+
+1. `debug_extract_markdown.py`
+2. `debug_chunking.py`
+3. `debug_embeddings.py`
+4. `debug_vectorstore.py`
+5. `debug_search.py`
+6. `debug_qa.py`
+7. `debug_ingest.py`
