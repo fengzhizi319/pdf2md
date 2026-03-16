@@ -75,9 +75,10 @@ def chunk_markdown_with_math_protection(md_text):
 # 主程序入口
 # ==========================================
 if __name__ == "__main__":
-    project_src_dir = Path(__file__).resolve().parent
-    input_pdf = project_src_dir / "Understanding Lasso – A Novel Lookup Argument Protocol.pdf"
-    output_md = project_src_dir / "Understanding Lasso – A Novel Lookup Argument Protocol.marker.md"
+    project_root_dir = Path(__file__).resolve().parents[1]
+    project_pdf_dir = project_root_dir / "pdf"
+    input_pdf = project_pdf_dir / "Understanding Lasso – A Novel Lookup Argument Protocol.pdf"
+    output_md = project_pdf_dir / "math-demo.marker.md"
 
     device = setup_device()
 

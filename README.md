@@ -50,16 +50,69 @@ python -m pip install -e '.[dev]'
 cd /Users/charles/PycharmProjects/pdf2md
 source .venv/bin/activate
 pdf2md-rag ingest \
-  "/Users/charles/Documents/2zkvm/理论资料/Understanding Lasso – A Novel Lookup Argument Protocol.pdf" \
+  "pdf/Understanding Lasso – A Novel Lookup Argument Protocol.pdf" \
   --collection understanding-lasso \
   --embedding-model BAAI/bge-small-en-v1.5
 ```
 
+CLI 在完成后会：
+
+- 打印 Markdown 和 Manifest 的输出路径
+- 自动校验这两个输出文件确实存在
+- 如果文件不存在，会直接退出并返回非零状态码
+
 默认输出：
 
-- Markdown: `data/markdown/`
+- Markdown: `pdf/`
 - Chroma: `data/chroma/`
 - Manifest: `data/manifests/`
+
+## 纯代码调试示例
+
+如果你想在 PyCharm / VS Code 里断点调试，不想用 CLI，可以直接运行仓库里的示例脚本：
+
+```bash
+cd /Users/charles/PycharmProjects/pdf2md
+source .venv/bin/activate
+python examples/debug_ingest.py
+```
+
+它内部直接调用：
+
+- `PipelineConfig`
+- `ingest_pdf(...)`
+
+并会打印：
+
+- 输入 PDF 路径
+- Markdown 输出路径与是否存在
+- Manifest 输出路径与是否存在
+- 页数 / chunk 数 / 向量数
+
+如果你想临时自己写一段最小调试代码，也可以直接用下面这个例子：
+
+```python
+from pathlib import Path
+
+from pdf2md_rag.config import DEFAULT_CHROMA_DIR, DEFAULT_MANIFEST_DIR, DEFAULT_MARKDOWN_DIR, PipelineConfig
+from pdf2md_rag.pipeline import ingest_pdf
+
+pdf_path = Path("pdf/Understanding Lasso – A Novel Lookup Argument Protocol.pdf").resolve()
+
+config = PipelineConfig(
+    markdown_dir=DEFAULT_MARKDOWN_DIR,
+    chroma_dir=DEFAULT_CHROMA_DIR,
+    manifest_dir=DEFAULT_MANIFEST_DIR,
+    collection_name="understanding-lasso-hash-debug",
+    embedder_type="hash",
+    embedding_model="unused",
+)
+
+result = ingest_pdf(pdf_path, config)
+print(result)
+print(Path(result.markdown_path).exists(), result.markdown_path)
+print(Path(result.manifest_path).exists(), result.manifest_path)
+```
 
 ## 检索测试
 
@@ -142,7 +195,7 @@ pdf2md-rag-qa \
 cd /Users/charles/PycharmProjects/pdf2md
 source .venv/bin/activate
 pdf2md-rag ingest \
-  "/Users/charles/Documents/2zkvm/理论资料/Understanding Lasso – A Novel Lookup Argument Protocol.pdf" \
+  "pdf/Understanding Lasso – A Novel Lookup Argument Protocol.pdf" \
   --collection understanding-lasso-hash \
   --embedder hash
 ```
@@ -152,6 +205,8 @@ pdf2md-rag ingest \
 ## Marker / Apple Silicon 说明
 
 - 默认 PDF 提取器会优先尝试 `mps`，不可用时回退到 CPU。
+- 为了避免 `surya` 的 `TableRecEncoderDecoderModel` 在 `mps` 上强制 fallback 到 CPU，项目在 `mps` 模式下会自动禁用表格识别相关处理器。
+- 这意味着正文、标题、数学公式等主路径仍然使用 `Marker + mps` 加速，但复杂表格结构提取能力会有所下降。
 - `Marker` 对学术论文、公式和 LaTeX 保留更友好，但首次运行可能需要初始化模型，耗时会比纯文本提取更长。
 - 默认 embedding 代码也会优先尝试 `mps`，不可用时回退到 CPU。
 - 首次运行 `sentence-transformers` 会下载 embedding 模型，需要联网。

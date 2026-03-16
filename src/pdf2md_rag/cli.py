@@ -4,7 +4,12 @@ from pathlib import Path
 
 import typer
 
-from .config import PipelineConfig
+from .config import (
+    DEFAULT_CHROMA_DIR,
+    DEFAULT_MANIFEST_DIR,
+    DEFAULT_MARKDOWN_DIR,
+    PipelineConfig,
+)
 from .embeddings import build_embedder
 from .pipeline import ingest_pdf
 from .vectorstore import query_collection
@@ -12,13 +17,22 @@ from .vectorstore import query_collection
 app = typer.Typer(help="Build and query a local PDF RAG knowledge base.")
 
 
+def _verify_output_file(label: str, file_path: str | Path) -> Path:
+    path = Path(file_path).expanduser().resolve()
+    if not path.exists():
+        typer.echo(f"ERROR: {label} file was not created: {path}")
+        raise typer.Exit(code=1)
+    typer.echo(f"Verified {label}: {path}")
+    return path
+
+
 @app.command()
 def ingest(
     pdf_path: Path = typer.Argument(..., exists=True, readable=True, resolve_path=True),
     collection: str = typer.Option("pdf-knowledge-base", help="Chroma collection name."),
-    markdown_dir: Path = typer.Option(Path("data/markdown"), help="Directory to save Markdown output."),
-    chroma_dir: Path = typer.Option(Path("data/chroma"), help="Directory to persist Chroma data."),
-    manifest_dir: Path = typer.Option(Path("data/manifests"), help="Directory to save manifest JSON."),
+    markdown_dir: Path = typer.Option(DEFAULT_MARKDOWN_DIR, help="Directory to save Markdown output."),
+    chroma_dir: Path = typer.Option(DEFAULT_CHROMA_DIR, help="Directory to persist Chroma data."),
+    manifest_dir: Path = typer.Option(DEFAULT_MANIFEST_DIR, help="Directory to save manifest JSON."),
     chunk_size: int = typer.Option(1200, min=200, help="Target chunk size in characters."),
     chunk_overlap: int = typer.Option(200, min=0, help="Chunk overlap in characters."),
     embedder: str = typer.Option("sentence-transformers", help="Embedding backend: sentence-transformers or hash."),
@@ -37,9 +51,12 @@ def ingest(
         batch_size=batch_size,
     )
     result = ingest_pdf(pdf_path=pdf_path, config=config)
+    markdown_path = _verify_output_file("Markdown", result.markdown_path)
+    manifest_path = _verify_output_file("Manifest", result.manifest_path)
+
     typer.echo(f"Ingested: {result.pdf_path}")
-    typer.echo(f"Markdown: {result.markdown_path}")
-    typer.echo(f"Manifest: {result.manifest_path}")
+    typer.echo(f"Markdown: {markdown_path}")
+    typer.echo(f"Manifest: {manifest_path}")
     typer.echo(f"Collection: {result.collection_name}")
     typer.echo(f"Pages: {result.page_count} | Chunks: {result.chunk_count} | Stored vectors: {result.vector_count}")
 
@@ -48,7 +65,7 @@ def ingest(
 def query(
     question: str = typer.Option(..., help="Question to search in the vector store."),
     collection: str = typer.Option("pdf-knowledge-base", help="Chroma collection name."),
-    chroma_dir: Path = typer.Option(Path("data/chroma"), help="Directory where Chroma is persisted."),
+    chroma_dir: Path = typer.Option(DEFAULT_CHROMA_DIR, help="Directory where Chroma is persisted."),
     embedder: str = typer.Option("sentence-transformers", help="Embedding backend: sentence-transformers or hash."),
     embedding_model: str = typer.Option("BAAI/bge-small-en-v1.5", help="Sentence Transformers model name."),
     top_k: int = typer.Option(5, min=1, max=20, help="How many matches to return."),
@@ -74,4 +91,3 @@ def query(
 
 if __name__ == "__main__":
     app()
-

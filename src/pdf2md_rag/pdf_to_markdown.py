@@ -8,6 +8,12 @@ from pathlib import Path
 
 from .models import MarkdownDocument
 
+_TABLE_PROCESSOR_PATHS = {
+    "marker.processors.table.TableProcessor",
+    "marker.processors.llm.llm_table.LLMTableProcessor",
+    "marker.processors.llm.llm_table_merge.LLMTableMergeProcessor",
+}
+
 
 def get_marker_device(preferred_device: str | None = None) -> str:
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
@@ -31,14 +37,53 @@ def get_marker_device(preferred_device: str | None = None) -> str:
     return device
 
 
-@lru_cache(maxsize=2)
-def load_marker_models(device: str):
+def should_disable_table_rec(marker_device: str) -> bool:
+    return marker_device == "mps"
+
+
+@lru_cache(maxsize=4)
+def load_marker_models(device: str, disable_table_rec: bool = False):
     try:
-        from marker.models import create_model_dict
+        from marker.models import (
+            DetectionPredictor,
+            FoundationPredictor,
+            LayoutPredictor,
+            OCRErrorPredictor,
+            RecognitionPredictor,
+            create_model_dict,
+            surya_settings,
+        )
     except ImportError as exc:
         raise ImportError("Marker 未安装。请先在虚拟环境中安装 marker-pdf。") from exc
 
-    return create_model_dict(device=device)
+    if not disable_table_rec:
+        return create_model_dict(device=device)
+
+    return {
+        "layout_model": LayoutPredictor(
+            FoundationPredictor(checkpoint=surya_settings.LAYOUT_MODEL_CHECKPOINT, device=device)
+        ),
+        "recognition_model": RecognitionPredictor(
+            FoundationPredictor(checkpoint=surya_settings.RECOGNITION_MODEL_CHECKPOINT, device=device)
+        ),
+        "detection_model": DetectionPredictor(device=device),
+        "ocr_error_model": OCRErrorPredictor(device=device),
+    }
+
+
+def get_marker_processor_list(disable_table_rec: bool) -> list[str] | None:
+    if not disable_table_rec:
+        return None
+
+    from marker.converters.pdf import PdfConverter
+
+    processor_list: list[str] = []
+    for processor_cls in PdfConverter.default_processors:
+        processor_path = f"{processor_cls.__module__}.{processor_cls.__name__}"
+        if processor_path in _TABLE_PROCESSOR_PATHS:
+            continue
+        processor_list.append(processor_path)
+    return processor_list
 
 
 def extract_markdown(pdf_path: str | Path, device: str | None = None) -> MarkdownDocument:
@@ -48,6 +93,7 @@ def extract_markdown(pdf_path: str | Path, device: str | None = None) -> Markdow
         raise FileNotFoundError(f"PDF not found: {source_path}")
 
     marker_device = get_marker_device(device)
+    disable_table_rec = should_disable_table_rec(marker_device)
 
     try:
         from marker.converters.pdf import PdfConverter
@@ -55,7 +101,8 @@ def extract_markdown(pdf_path: str | Path, device: str | None = None) -> Markdow
         raise ImportError("当前环境缺少 Marker 的 PdfConverter，请确认已安装 marker-pdf。") from exc
 
     converter = PdfConverter(
-        artifact_dict=load_marker_models(marker_device),
+        artifact_dict=load_marker_models(marker_device, disable_table_rec=disable_table_rec),
+        processor_list=get_marker_processor_list(disable_table_rec),
         config={
             "disable_multiprocessing": True,
             "output_format": "markdown",
