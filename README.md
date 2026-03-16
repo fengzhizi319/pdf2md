@@ -217,3 +217,47 @@ pdf2md-rag ingest \
 - `src/pdf2md_rag/`：主代码
 - `tests/`：单元测试与 smoke test
 
+## 源码阅读入口
+
+如果你想系统读懂这个项目，推荐按下面的顺序阅读：
+
+### 第一步：先看全局架构
+
+- [`docs/architecture.md`](docs/architecture.md)
+  - 看模块分层
+  - 看主数据流
+  - 先建立 `PDF -> Markdown -> Chunks -> Embeddings -> Chroma -> Search -> QA` 的整体印象
+
+### 第二步：再看调用关系
+
+- [`docs/call-graph.md`](docs/call-graph.md)
+  - 看“谁调用了谁”
+  - 适合在 IDE 里配合“跳转到定义”一起看
+
+### 第三步：从可运行代码入口开始读
+
+- [`examples/debug_ingest.py`](examples/debug_ingest.py)
+  - 最适合一边运行、一边断点调试
+- [`src/pdf2md_rag/cli.py`](src/pdf2md_rag/cli.py)
+  - 看命令行入口如何组装参数
+- [`src/pdf2md_rag/pipeline.py`](src/pdf2md_rag/pipeline.py)
+  - 看主流程编排
+
+### 第四步：按主链路继续往下看
+
+1. [`src/pdf2md_rag/models.py`](src/pdf2md_rag/models.py)
+2. [`src/pdf2md_rag/config.py`](src/pdf2md_rag/config.py)
+3. [`src/pdf2md_rag/pipeline.py`](src/pdf2md_rag/pipeline.py)
+4. [`src/pdf2md_rag/pdf_to_markdown.py`](src/pdf2md_rag/pdf_to_markdown.py)
+5. [`src/pdf2md_rag/chunking.py`](src/pdf2md_rag/chunking.py)
+6. [`src/pdf2md_rag/embeddings.py`](src/pdf2md_rag/embeddings.py)
+7. [`src/pdf2md_rag/vectorstore.py`](src/pdf2md_rag/vectorstore.py)
+8. [`src/pdf2md_rag/search.py`](src/pdf2md_rag/search.py)
+9. [`src/pdf2md_rag/simple_qa.py`](src/pdf2md_rag/simple_qa.py)
+10. [`src/mac_rag_pipeline.py`](src/mac_rag_pipeline.py)
+
+这套顺序的思路是：
+
+- 先理解全局
+- 再理解调用关系
+- 最后深入每个模块细节

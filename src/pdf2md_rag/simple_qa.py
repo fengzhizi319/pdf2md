@@ -1,3 +1,13 @@
+"""最小化 RAG 问答层。
+
+这个模块站在检索层之上：
+- 先调用 `search_chunks` 取回上下文
+- 再把上下文包装成 prompt
+- 最后调用本地或远程 LLM 后端
+
+它不负责训练或复杂 agent 逻辑，只演示“检索增强问答”的最短闭环。
+"""
+
 from __future__ import annotations
 
 import json
@@ -21,6 +31,8 @@ app = typer.Typer(help="Ask questions against the local Chroma store with a loca
 
 @dataclass(slots=True)
 class QAResult:
+    """一次问答执行后的结构化结果。"""
+
     question: str
     answer: str
     search_result: SearchResult
@@ -46,6 +58,13 @@ def ask_question(
     max_tokens: int = 800,
     max_context_chars: int = 6000,
 ) -> QAResult:
+    """执行一次简化版 RAG 问答。
+
+    流程很直接：
+    1. 先检索相关 chunk
+    2. 把上下文拼进 prompt
+    3. 把 prompt 发给指定的 LLM 后端
+    """
     search_result = search_chunks(
         question=question,
         collection_name=collection_name,
@@ -93,6 +112,7 @@ def ask_question(
 
 
 def _build_user_prompt(question: str, search_result: SearchResult) -> str:
+    """把检索结果包装成给 LLM 的用户提示词。"""
     return (
         f"Answer the question using only the context below.\n\n"
         f"Question:\n{question}\n\n"
@@ -113,6 +133,7 @@ def _call_openai_compatible(
     temperature: float,
     max_tokens: int,
 ) -> dict[str, Any]:
+    """调用兼容 `/v1/chat/completions` 的后端。"""
     payload = {
         "model": model,
         "messages": [
@@ -135,6 +156,7 @@ def _call_ollama(
     user_prompt: str,
     temperature: float,
 ) -> dict[str, Any]:
+    """调用本地或远程的 Ollama `/api/chat` 接口。"""
     payload = {
         "model": model,
         "stream": False,
@@ -152,6 +174,7 @@ def _call_ollama(
 
 
 def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> dict[str, Any]:
+    """发送一个最小的 JSON POST 请求。"""
     body = json.dumps(payload).encode("utf-8")
     req = request.Request(url=url, data=body, headers=headers, method="POST")
     with request.urlopen(req, timeout=120) as response:
@@ -159,6 +182,7 @@ def _post_json(url: str, payload: dict[str, Any], headers: dict[str, str]) -> di
 
 
 def _extract_openai_answer(raw: dict[str, Any]) -> str:
+    """从 OpenAI 风格响应中取出文本答案。"""
     choices = raw.get("choices") or []
     if not choices:
         return ""
@@ -166,6 +190,7 @@ def _extract_openai_answer(raw: dict[str, Any]) -> str:
 
 
 def _extract_ollama_answer(raw: dict[str, Any]) -> str:
+    """从 Ollama 风格响应中取出文本答案。"""
     return str((raw.get("message") or {}).get("content", ""))
 
 
@@ -184,6 +209,7 @@ def main(
     api_key: str | None = typer.Option(None, help="API key for OpenAI-compatible providers."),
     max_context_chars: int = typer.Option(6000, min=500, help="Max characters of retrieval context passed to the LLM."),
 ) -> None:
+    """CLI 入口：把问答结果打印到终端。"""
     result = ask_question(
         question=question,
         collection_name=collection,

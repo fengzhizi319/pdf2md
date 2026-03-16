@@ -1,3 +1,14 @@
+"""命令行入口层。
+
+这个文件本身不实现核心算法，它的职责是：
+- 解析命令行参数
+- 组装 `PipelineConfig`
+- 调用共享的 ingest / query 逻辑
+- 打印结果并做关键输出校验
+
+如果想学主流程实现，优先去看 `pipeline.py`；如果想学项目如何暴露给用户，就看这里。
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,6 +29,7 @@ app = typer.Typer(help="Build and query a local PDF RAG knowledge base.")
 
 
 def _verify_output_file(label: str, file_path: str | Path) -> Path:
+    """校验某个关键输出文件是否真的落盘。"""
     path = Path(file_path).expanduser().resolve()
     if not path.exists():
         typer.echo(f"ERROR: {label} file was not created: {path}")
@@ -39,6 +51,7 @@ def ingest(
     embedding_model: str = typer.Option("BAAI/bge-small-en-v1.5", help="Sentence Transformers model name."),
     batch_size: int = typer.Option(32, min=1, help="Reserved batch size config for future extension."),
 ) -> None:
+    """CLI 入口：构造配置并调用共享 ingest 主流程。"""
     config = PipelineConfig(
         markdown_dir=markdown_dir,
         chroma_dir=chroma_dir,
@@ -70,6 +83,7 @@ def query(
     embedding_model: str = typer.Option("BAAI/bge-small-en-v1.5", help="Sentence Transformers model name."),
     top_k: int = typer.Option(5, min=1, max=20, help="How many matches to return."),
 ) -> None:
+    """CLI 入口：做一次最小向量检索并把结果打印出来。"""
     query_embedder = build_embedder(embedder_type=embedder, model_name=embedding_model)
     rows = query_collection(
         question=question,

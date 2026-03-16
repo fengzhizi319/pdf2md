@@ -1,3 +1,12 @@
+"""向量存储适配层。
+
+这个模块只做最薄的一层封装：
+- 把内部 `Chunk`/embedding 结构映射到 Chroma
+- 把 Chroma 的查询结果整理回项目自己的轻量结构
+
+这样上层模块可以依赖稳定接口，而不是直接耦合 Chroma 的原始返回格式。
+"""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,6 +21,7 @@ def upsert_chunks(
     persist_directory: str | Path,
     collection_name: str,
 ) -> dict[str, Any]:
+    """把 chunk 和对应向量一起写入本地 Chroma。"""
     if len(chunks) != len(embeddings):
         raise ValueError("chunks and embeddings must have the same length")
 
@@ -46,6 +56,7 @@ def query_collection(
     collection_name: str,
     top_k: int = 5,
 ) -> list[dict[str, Any]]:
+    """在本地 Chroma 中执行向量检索，并整理成统一的行结构。"""
     import chromadb
 
     client = chromadb.PersistentClient(path=str(Path(persist_directory)))
@@ -62,6 +73,8 @@ def query_collection(
     metadatas = result.get("metadatas", [[]])[0]
     distances = result.get("distances", [[]])[0]
 
+    # 这里故意转成项目自己的轻量结构，而不是把 Chroma 原始返回值继续往上传，
+    # 这样 search / QA 层就不需要关心底层数据库的具体字段组织方式。
     for chunk_id, document, metadata, distance in zip(ids, documents, metadatas, distances):
         rows.append(
             {

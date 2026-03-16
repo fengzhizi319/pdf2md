@@ -1,3 +1,14 @@
+"""PDF -> Markdown 提取层。
+
+这是整个项目默认的 PDF 提取入口，负责：
+- 选择 Marker 运行设备（优先 MPS）
+- 处理 Apple Silicon / MPS 兼容细节
+- 调用 Marker 输出 Markdown
+- 把结果封装成 `MarkdownDocument`
+
+上层模块不需要关心 Marker / Surya 的底层实现，只需要调用 `extract_markdown`。
+"""
+
 from __future__ import annotations
 
 import importlib
@@ -8,6 +19,9 @@ from pathlib import Path
 
 from .models import MarkdownDocument
 
+# 这些处理器会触发表格结构识别；而 Marker 当前依赖的
+# `surya.TableRecEncoderDecoderModel` 在 MPS 上会强制退回 CPU。
+# 为了保证“主路径始终跑在 MPS 上”，项目在 MPS 模式下会把它们剔除。
 _TABLE_PROCESSOR_PATHS = {
     "marker.processors.table.TableProcessor",
     "marker.processors.llm.llm_table.LLMTableProcessor",
@@ -16,6 +30,11 @@ _TABLE_PROCESSOR_PATHS = {
 
 
 def get_marker_device(preferred_device: str | None = None) -> str:
+    """决定 Marker 本次运行使用的设备。
+
+    优先级：显式传入参数 > 环境变量 > 自动探测。
+    这样 CLI、调试脚本和测试都可以复用同一套设备选择逻辑。
+    """
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
     if preferred_device:
@@ -38,11 +57,16 @@ def get_marker_device(preferred_device: str | None = None) -> str:
 
 
 def should_disable_table_rec(marker_device: str) -> bool:
+    """在 MPS 下禁用表格识别，避免 Surya 自动切回 CPU。"""
     return marker_device == "mps"
 
 
 @lru_cache(maxsize=4)
 def load_marker_models(device: str, disable_table_rec: bool = False):
+    """按需加载 Marker / Surya 模型，并缓存结果。
+
+    模型初始化成本很高，所以这里用缓存避免同一进程里重复加载。
+    """
     try:
         from marker.models import (
             DetectionPredictor,
@@ -56,9 +80,11 @@ def load_marker_models(device: str, disable_table_rec: bool = False):
     except ImportError as exc:
         raise ImportError("Marker 未安装。请先在虚拟环境中安装 marker-pdf。") from exc
 
+    # 非 MPS 场景直接使用 Marker 官方默认模型集合。
     if not disable_table_rec:
         return create_model_dict(device=device)
 
+    # MPS 场景只保留正文、版面、OCR、公式主路径需要的模型。
     return {
         "layout_model": LayoutPredictor(
             FoundationPredictor(checkpoint=surya_settings.LAYOUT_MODEL_CHECKPOINT, device=device)
@@ -72,6 +98,7 @@ def load_marker_models(device: str, disable_table_rec: bool = False):
 
 
 def get_marker_processor_list(disable_table_rec: bool) -> list[str] | None:
+    """在需要时从默认处理器链路里移除表格处理器。"""
     if not disable_table_rec:
         return None
 
@@ -100,6 +127,8 @@ def extract_markdown(pdf_path: str | Path, device: str | None = None) -> Markdow
     except ImportError as exc:
         raise ImportError("当前环境缺少 Marker 的 PdfConverter，请确认已安装 marker-pdf。") from exc
 
+    # `PdfConverter` 是 Marker 的总入口：传入模型字典、处理器链路和输出配置，
+    # 最终返回 markdown / html / json 等不同格式。
     converter = PdfConverter(
         artifact_dict=load_marker_models(marker_device, disable_table_rec=disable_table_rec),
         processor_list=get_marker_processor_list(disable_table_rec),

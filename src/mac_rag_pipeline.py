@@ -1,3 +1,13 @@
+"""面向本地演示和学习的脚本入口。
+
+这个文件不是项目唯一入口，而是一个更直观的脚本版 demo：
+- 复用共享的 Marker 提取逻辑
+- 在终端里打印更友好的进度信息
+- 演示 PDF -> Markdown -> 轻量 chunking 的最短路径
+
+如果想看正式主流程，请优先阅读 `pdf2md_rag/pipeline.py`。
+"""
+
 import os
 from pathlib import Path
 
@@ -10,6 +20,7 @@ from pdf2md_rag.pdf_to_markdown import extract_markdown, get_marker_device
 # 步骤 1：配置 Mac 专属的 MPS 硬件加速
 # ==========================================
 def setup_device() -> str:
+    """这个脚本版入口只负责给用户一个更直观的本地运行体验。"""
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
     device = get_marker_device()
 
@@ -25,6 +36,7 @@ def setup_device() -> str:
 # 步骤 2：使用 Marker 将 PDF 解析为 Markdown (保留公式)
 # ==========================================
 def parse_pdf_to_md(pdf_path, output_md_path, device: str | None = None):
+    """对共享 `extract_markdown` 做一层脚本友好的包装。"""
     pdf_path = Path(pdf_path).expanduser().resolve()
     output_md_path = Path(output_md_path).expanduser().resolve()
     marker_device = device or os.environ.get("TORCH_DEVICE") or setup_device()
@@ -47,6 +59,7 @@ def parse_pdf_to_md(pdf_path, output_md_path, device: str | None = None):
 # 步骤 3：针对公式优化的文档切分 (Chunking)
 # ==========================================
 def chunk_markdown_with_math_protection(md_text):
+    """给脚本版演示准备的轻量 chunking：重点优先照顾 `$$...$$` 数学块。"""
     print("\n[2/3] 开始进行智能切分 (Chunking)...")
 
     custom_separators = [
