@@ -70,8 +70,26 @@ class SentenceTransformerEmbedder:
                 "sentence-transformers and torch are required for the default embedder"
             ) from exc
 
-        # Apple Silicon 上优先尝试 MPS；否则退回 CPU。
-        device = "mps" if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available() else "cpu"
+        # Device selection: respect TORCH_DEVICE env override; otherwise prefer
+        # CUDA > MPS (on macOS) > CPU so it works across platforms.
+        env_device = None
+        try:
+            import os
+
+            env_device = os.environ.get("TORCH_DEVICE")
+        except Exception:
+            env_device = None
+
+        if env_device:
+            device = env_device
+        else:
+            if getattr(torch, "cuda", None) and torch.cuda.is_available():
+                device = "cuda"
+            elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+                device = "mps"
+            else:
+                device = "cpu"
+
         self._model = SentenceTransformer(self.model_name, device=device)
 
     def embed_texts(self, texts: list[str]) -> list[list[float]]:

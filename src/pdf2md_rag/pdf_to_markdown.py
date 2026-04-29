@@ -50,7 +50,13 @@ def get_marker_device(preferred_device: str | None = None) -> str:
         device = "cpu"
     else:
         torch = importlib.import_module("torch")
-        device = "mps" if torch.backends.mps.is_available() else "cpu"
+        # Prefer CUDA if available, then MPS on macOS, otherwise CPU.
+        if getattr(torch, "cuda", None) and torch.cuda.is_available():
+            device = "cuda"
+        elif getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
 
     os.environ["TORCH_DEVICE"] = device
     return device
@@ -124,11 +130,14 @@ def extract_markdown(pdf_path: str | Path, device: str | None = None) -> Markdow
 
     try:
         from marker.converters.pdf import PdfConverter
-    except ImportError as exc:
-        raise ImportError("当前环境缺少 Marker 的 PdfConverter，请确认已安装 marker-pdf。") from exc
+    except ImportError:
+        # Fallback to a cross-platform extractor (PyMuPDF) when Marker is not installed.
+        from .extractors import extract_with_pymupdf
 
-    # `PdfConverter` 是 Marker 的总入口：传入模型字典、处理器链路和输出配置，
-    # 最终返回 markdown / html / json 等不同格式。
+        return extract_with_pymupdf(source_path)
+
+    # `PdfConverter` is Marker entrypoint: pass models, processor list and config
+    # and get a rendered object with markdown output.
     converter = PdfConverter(
         artifact_dict=load_marker_models(marker_device, disable_table_rec=disable_table_rec),
         processor_list=get_marker_processor_list(disable_table_rec),

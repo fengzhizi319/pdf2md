@@ -12,7 +12,8 @@ authors = [{ name = "Charles" }]
 dependencies = [
   "chromadb>=1.0.0",
   "langchain-text-splitters>=0.3.0",
-  "marker-pdf>=1.10.0",
+  # Marker is optional and may be installed on macOS for better PDF->Markdown extraction.
+  # On Windows, a PyMuPDF-based fallback will be used by default.
   "pymupdf>=1.26.0",
   "sentence-transformers>=3.0.0",
   "typer>=0.12.0",
@@ -21,6 +22,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
   "pytest>=8.0.0",
+]
+marker = [
+  "marker-pdf>=1.10.0",
 ]
 
 [project.scripts]

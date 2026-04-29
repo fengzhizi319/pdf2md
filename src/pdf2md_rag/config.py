@@ -38,3 +38,5 @@ class PipelineConfig:
     embedding_model: str = "BAAI/bge-small-en-v1.5"
     batch_size: int = 32
     hash_embedding_dimensions: int = 384
+    # extractor_type: 'auto' will prefer Marker when installed, otherwise use PyMuPDF
+    extractor_type: str = "auto"

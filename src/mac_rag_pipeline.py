@@ -17,17 +17,19 @@ from pdf2md_rag.pdf_to_markdown import extract_markdown, get_marker_device
 
 
 # ==========================================
-# 步骤 1：配置 Mac 专属的 MPS 硬件加速
+# 步骤 1：配置并报告运行设备
 # ==========================================
 def setup_device() -> str:
-    """这个脚本版入口只负责给用户一个更直观的本地运行体验。"""
+    """Choose and report a device for local runs (CUDA / MPS / CPU)."""
     os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
     device = get_marker_device()
 
-    if device == "mps":
-        print("🚀 检测到 Apple Silicon (M系列芯片)，已开启 Marker + MPS 硬件加速！")
+    if device == "cuda":
+        print("🚀 检测到 CUDA，可使用 GPU 加速。")
+    elif device == "mps":
+        print("🚀 检测到 Apple Silicon (M 系列芯片)，已开启 MPS 加速。")
     else:
-        print("⚠️ 未检测到 MPS，将使用 CPU 运行 Marker。")
+        print("⚠️ 未检测到 GPU 加速，将使用 CPU。")
 
     return device
 

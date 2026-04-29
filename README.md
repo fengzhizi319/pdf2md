@@ -26,29 +26,55 @@
 
 ## 安装
 
+在 macOS / Linux:
+
 ```bash
-cd /Users/charles/PycharmProjects/pdf2md
+cd /path/to/pdf2md
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 ```
 
+在 Windows PowerShell:
+
+```powershell
+cd C:\path\to\pdf2md
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e '.[dev]'
+```
+
 ## 默认 PDF 提取器
 
-整个项目现在默认使用 `Marker` 进行 PDF -> Markdown 提取，包括：
+项目会优先使用 `Marker`（当已安装时）进行高质量 PDF -> Markdown 提取，适合学术论文、数学公式和 LaTeX 场景。
+若环境中未安装 `marker-pdf`（例如多数 Windows 安装），项目会自动回退到基于 `PyMuPDF` 的轻量提取器以保证跨平台可用性。
+
+相关调用点：
 
 - `pdf2md_rag.pdf_to_markdown.extract_markdown`
 - `pdf2md_rag.pipeline.ingest_pdf`
 - `src/mac_rag_pipeline.py`
 
-这意味着对包含大量数学公式、学术版式、LaTeX 表达式的论文，提取质量通常会明显好于普通纯文本抽取。
-
 ## 导入示例 PDF
 
+在 macOS / Linux:
+
 ```bash
-cd /Users/charles/PycharmProjects/pdf2md
+cd /path/to/pdf2md
 source .venv/bin/activate
+pdf2md-rag ingest \
+  "pdf/Understanding Lasso – A Novel Lookup Argument Protocol.pdf" \
+  --collection understanding-lasso \
+  --embedding-model BAAI/bge-small-en-v1.5
+```
+
+在 Windows PowerShell:
+
+```powershell
+cd C:\path\to\pdf2md
+.\.venv\Scripts\Activate.ps1
 pdf2md-rag ingest \
   "pdf/Understanding Lasso – A Novel Lookup Argument Protocol.pdf" \
   --collection understanding-lasso \
@@ -71,9 +97,19 @@ CLI 在完成后会：
 
 如果你想在 PyCharm / VS Code 里断点调试，不想用 CLI，可以直接运行仓库里的示例脚本：
 
+在 macOS / Linux:
+
 ```bash
-cd /Users/charles/PycharmProjects/pdf2md
+cd /path/to/pdf2md
 source .venv/bin/activate
+python examples/debug_ingest.py
+```
+
+在 Windows PowerShell:
+
+```powershell
+cd C:\path\to\pdf2md
+.\.venv\Scripts\Activate.ps1
 python examples/debug_ingest.py
 ```
 
@@ -135,9 +171,32 @@ pdf2md-rag query \
 - `sources`：便于引用的来源列表
 - `retrieval_meta`：检索配置与统计信息
 
+在 macOS / Linux:
+
 ```bash
-cd /Users/charles/PycharmProjects/pdf2md
+cd /path/to/pdf2md
 source .venv/bin/activate
+python - <<'PY'
+from pdf2md_rag.search import search_chunks
+
+result = search_chunks(
+    question="What is the main idea of the Lasso lookup protocol?",
+    collection_name="understanding-lasso-hash",
+    persist_directory="data/chroma",
+    top_k=3,
+    embedder_type="hash",
+    embedding_model="unused",
+)
+print(result.context_text)
+print(result.sources)
+PY
+```
+
+在 Windows PowerShell:
+
+```powershell
+cd C:\path\to\pdf2md
+.\.venv\Scripts\Activate.ps1
 python - <<'PY'
 from pdf2md_rag.search import search_chunks
 
@@ -200,15 +259,15 @@ pdf2md-rag ingest \
   --embedder hash
 ```
 
-> 注意：这里的“离线快速测试”只是不下载 embedding 模型；PDF 提取阶段仍会使用 `Marker`。
+> 注意：这里的“离线快速测试”只是不下载 embedding 模型；PDF 提取阶段会优先使用 `Marker`（如果已安装），否则会使用 PyMuPDF 回退提取器以保证跨平台可用性。
 
 ## Marker / Apple Silicon 说明
 
-- 默认 PDF 提取器会优先尝试 `mps`，不可用时回退到 CPU。
-- 为了避免 `surya` 的 `TableRecEncoderDecoderModel` 在 `mps` 上强制 fallback 到 CPU，项目在 `mps` 模式下会自动禁用表格识别相关处理器。
+-- 默认 PDF 提取器在可用时会优先尝试 GPU（CUDA / MPS），否则回退到 CPU。
+-- 为了避免 `surya` 的 `TableRecEncoderDecoderModel` 在 `mps` 上强制 fallback 到 CPU，项目在 `mps` 模式下会自动禁用表格识别相关处理器（仅适用于 Marker 路径）。
 - 这意味着正文、标题、数学公式等主路径仍然使用 `Marker + mps` 加速，但复杂表格结构提取能力会有所下降。
 - `Marker` 对学术论文、公式和 LaTeX 保留更友好，但首次运行可能需要初始化模型，耗时会比纯文本提取更长。
-- 默认 embedding 代码也会优先尝试 `mps`，不可用时回退到 CPU。
+-- 默认 embedding 代码会尝试按顺序使用 CUDA > MPS > CPU。
 - 首次运行 `sentence-transformers` 会下载 embedding 模型，需要联网。
 - 若使用本地 LLM，Ollama 是最省事的方式；若使用远程或自托管 OpenAI 兼容接口，直接指向对应 `base_url` 即可。
 

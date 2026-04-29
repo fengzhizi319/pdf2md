@@ -31,22 +31,32 @@ def upsert_chunks(
     persist_path.mkdir(parents=True, exist_ok=True)
 
     client = chromadb.PersistentClient(path=str(persist_path))
-    collection = client.get_or_create_collection(
-        name=collection_name,
-        metadata={"hnsw:space": "cosine"},
-    )
-    collection.upsert(
-        ids=[chunk.chunk_id for chunk in chunks],
-        documents=[chunk.text for chunk in chunks],
-        metadatas=[chunk.metadata for chunk in chunks],
-        embeddings=embeddings,
-    )
-    count = collection.count()
-    return {
-        "collection_name": collection_name,
-        "persist_directory": str(persist_path),
-        "count": count,
-    }
+    try:
+        collection = client.get_or_create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
+        collection.upsert(
+            ids=[chunk.chunk_id for chunk in chunks],
+            documents=[chunk.text for chunk in chunks],
+            metadatas=[chunk.metadata for chunk in chunks],
+            embeddings=embeddings,
+        )
+        count = collection.count()
+        return {
+            "collection_name": collection_name,
+            "persist_directory": str(persist_path),
+            "count": count,
+        }
+    finally:
+        # Ensure the client is closed so temporary directories can be removed on Windows.
+        try:
+            client.shutdown()
+        except Exception:
+            try:
+                client.close()
+            except Exception:
+                pass
 
 
 def query_collection(
@@ -60,29 +70,38 @@ def query_collection(
     import chromadb
 
     client = chromadb.PersistentClient(path=str(Path(persist_directory)))
-    collection = client.get_collection(collection_name)
-    result = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=top_k,
-        include=["documents", "metadatas", "distances"],
-    )
-
-    rows: list[dict[str, Any]] = []
-    ids = result.get("ids", [[]])[0]
-    documents = result.get("documents", [[]])[0]
-    metadatas = result.get("metadatas", [[]])[0]
-    distances = result.get("distances", [[]])[0]
-
-    # 这里故意转成项目自己的轻量结构，而不是把 Chroma 原始返回值继续往上传，
-    # 这样 search / QA 层就不需要关心底层数据库的具体字段组织方式。
-    for chunk_id, document, metadata, distance in zip(ids, documents, metadatas, distances):
-        rows.append(
-            {
-                "id": chunk_id,
-                "document": document,
-                "metadata": metadata,
-                "distance": distance,
-                "question": question,
-            }
+    try:
+        collection = client.get_collection(collection_name)
+        result = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k,
+            include=["documents", "metadatas", "distances"],
         )
-    return rows
+
+        rows: list[dict[str, Any]] = []
+        ids = result.get("ids", [[]])[0]
+        documents = result.get("documents", [[]])[0]
+        metadatas = result.get("metadatas", [[]])[0]
+        distances = result.get("distances", [[]])[0]
+
+        # 这里故意转成项目自己的轻量结构，而不是把 Chroma 原始返回值继续往上传，
+        # 这样 search / QA 层就不需要关心底层数据库的具体字段组织方式。
+        for chunk_id, document, metadata, distance in zip(ids, documents, metadatas, distances):
+            rows.append(
+                {
+                    "id": chunk_id,
+                    "document": document,
+                    "metadata": metadata,
+                    "distance": distance,
+                    "question": question,
+                }
+            )
+        return rows
+    finally:
+        try:
+            client.shutdown()
+        except Exception:
+            try:
+                client.close()
+            except Exception:
+                pass
